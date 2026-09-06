@@ -1,0 +1,11 @@
+node_modules/
+npm-debug.log*
+*.log
+
+# 运行时数据（Docker 卷挂载内容，不入库）
+data/*.json
+data/*.bak
+data/*.tmp
+
+.DS_Store
+.env

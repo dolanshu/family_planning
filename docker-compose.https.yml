@@ -1,0 +1,37 @@
+# 生产 HTTPS 部署叠加层（Caddy 自动申请 Let's Encrypt 证书）
+#
+# 用法：
+#   export DOMAIN=todo.example.com
+#   export SESSION_SECRET=<一段随机字符串>
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml --profile https up -d
+#
+# 注意：需要把域名 A 记录指向本机公网 IP，且 80/443 端口可访问。
+services:
+  app:
+    environment:
+      TRUST_PROXY: "1"
+      SESSION_SECRET: ${SESSION_SECRET:?请设置 SESSION_SECRET 环境变量}
+      NODE_ENV: production
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      DOMAIN: ${DOMAIN:?请设置 DOMAIN 环境变量}
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: family-todo-caddy
+    profiles: ["https"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?请设置 DOMAIN 环境变量}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

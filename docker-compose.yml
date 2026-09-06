@@ -1,0 +1,17 @@
+# 开发 / 局域网部署：docker compose up -d
+# 手机访问 http://<主机IP>:3000
+services:
+  app:
+    build: .
+    container_name: family-todo
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      # 会话签名密钥，生产环境务必修改
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me}
+      # 是否开放注册，公网部署建议设为 false 后再手动开
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

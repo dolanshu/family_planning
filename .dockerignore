@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+data/*.json
+data/*.bak
+data/*.tmp
+test
+design.md
+plan.md
+requirement.md
+README.md
+*.log
+.env

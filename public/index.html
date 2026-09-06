@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#4F7CFF">
+  <meta name="description" content="家庭 Todo 清单 —— 多账号、家庭共享与任务指派">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>家庭清单</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ============ 登录 / 注册 ============ -->
+  <section id="view-auth" class="view view-auth">
+    <div class="auth-wrap">
+      <div class="auth-brand">
+        <div class="auth-logo">✓</div>
+        <h1>家庭清单</h1>
+        <p>与家人一起，把事情做完</p>
+      </div>
+
+      <form id="auth-form" class="card auth-card" autocomplete="on" novalidate>
+        <h2 id="auth-title">登录</h2>
+
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <input id="auth-username" type="text" autocomplete="username"
+                 placeholder="3-20 位，支持中英文数字" enterkeyhint="next">
+        </label>
+
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input id="auth-password" type="password" autocomplete="current-password"
+                 placeholder="至少 6 位" enterkeyhint="done">
+        </label>
+
+        <label class="field hidden" id="auth-confirm-field">
+          <span class="field-label">确认密码</span>
+          <input id="auth-confirm" type="password" autocomplete="new-password"
+                 placeholder="再次输入密码" enterkeyhint="done">
+        </label>
+
+        <div id="auth-error" class="banner-error hidden" role="alert"></div>
+
+        <button id="auth-submit" class="btn btn-primary btn-block" type="submit">登录</button>
+        <button id="auth-switch" class="btn-link" type="button">还没有账号？立即注册</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ 主清单 ============ -->
+  <section id="view-main" class="view hidden">
+    <header class="app-bar">
+      <div class="app-bar-text">
+        <h1 id="today-title">—</h1>
+        <p id="greeting">你好</p>
+      </div>
+      <div class="app-bar-actions">
+        <button id="btn-filter" class="icon-btn" type="button" aria-label="筛选">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+        </button>
+        <button id="btn-menu" class="icon-btn" type="button" aria-label="菜单">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5S18.3 16.4 19.5 20"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="scope-tabs" class="chips chips-scope" role="tablist"></div>
+    <div id="status-tabs" class="chips chips-status" role="tablist">
+      <button class="chip is-active" data-status="open" type="button">待办</button>
+      <button class="chip" data-status="waiting" type="button">等待</button>
+      <button class="chip" data-status="doing" type="button">进行中</button>
+      <button class="chip" data-status="done" type="button">已完成</button>
+    </div>
+    <div id="active-filters" class="chips chips-active hidden"></div>
+
+    <main id="task-list" class="task-list" aria-live="polite"></main>
+
+    <button id="btn-add" class="fab" type="button" aria-label="新增任务">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </section>
+
+  <!-- ============ 家庭管理 ============ -->
+  <section id="view-family" class="view hidden">
+    <header class="app-bar">
+      <button id="family-back" class="icon-btn" type="button" aria-label="返回">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="app-bar-text"><h1>家庭管理</h1></div>
+      <span class="app-bar-spacer"></span>
+    </header>
+    <main id="family-content" class="page-content"></main>
+  </section>
+
+  <!-- ============ 统计报告 ============ -->
+  <section id="view-report" class="view hidden">
+    <header class="app-bar">
+      <button id="report-back" class="icon-btn" type="button" aria-label="返回">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="app-bar-text"><h1>统计报告</h1></div>
+      <span class="app-bar-spacer"></span>
+    </header>
+    <main class="page-content">
+      <div id="report-controls" class="card"></div>
+      <div id="report-summary" class="stat-grid"></div>
+      <div id="report-trend" class="card hidden"></div>
+      <div id="report-byuser" class="card hidden"></div>
+      <div id="report-bypriority" class="card hidden"></div>
+      <div id="report-items" class="card hidden"></div>
+      <div class="row-actions">
+        <button id="btn-export-csv" class="btn btn-secondary" type="button">导出 CSV</button>
+        <button id="btn-export-json" class="btn btn-secondary" type="button">导出 JSON</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- 弹层与提示容器 -->
+  <div id="sheet-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/filter.js"></script>
+  <script src="js/tasks.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/family.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

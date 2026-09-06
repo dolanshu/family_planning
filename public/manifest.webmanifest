@@ -1,0 +1,20 @@
+{
+  "name": "家庭清单",
+  "short_name": "家庭清单",
+  "description": "多账号、家庭共享与任务指派的移动端 Todo 清单",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F6F8",
+  "theme_color": "#4F7CFF",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
