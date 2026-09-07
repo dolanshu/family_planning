@@ -11,6 +11,7 @@
 - **任务指派**：家庭任务缺省「全体（公共）」，可指派给任一成员；指派不改变可见性
 - **三态流转**：等待 / 进行中 / 完成；标记完成后立即从缺省列表消失
 - **组合筛选**：指派人（含「全体」）/ 到期日（已逾期·今天·本周·本月·自定义）/ 优先级（多选）
+- **灵活排序**：优先级 / 指派人 / 到期日 / 状态；**默认优先级降序（高 → 低）**，点击已选维度切换升 ⇄ 降序；按「到期日」排序时显示日期分组，其余维度平铺
 - **统计报告**：按日 / 周 / 月 / 年聚合完成数、完成率、平均耗时；按指派人（含「全体」桶）与优先级分组；导出带 UTF-8 BOM 的 CSV（Excel 中文不乱码）与 JSON
 - **移动端体验**：安全区适配、深色模式、添加到主屏幕（PWA manifest）、左滑 / 长按删除
 - **数据安全**：内存态 + 串行写队列 + 临时文件 `rename` 原子落盘，自动保留 `.bak` 备份
@@ -100,7 +101,7 @@ Caddy 会自动申请并续期 Let's Encrypt 证书，手机直接访问 `https:
 | GET | `/api/families/:id/members` | 成员列表 |
 | PATCH | `/api/families/:id` | 重命名（owner） |
 | DELETE | `/api/families/:id/members/:userId` | 移除成员（owner） |
-| GET | `/api/tasks` | 任务列表，参数：`status=open(缺省)/waiting/doing/done/all`、`scope`、`familyId`、`assignee=all/public/me/<id>`、`creator`、`priority=3,2`、`dueFrom`、`dueTo`、`overdue=true` |
+| GET | `/api/tasks` | 任务列表，参数：`status=open(缺省)/waiting/doing/done/all`、`scope`、`familyId`、`assignee=all/public/me/<id>`、`creator`、`priority=3,2`、`dueFrom`、`dueTo`、`overdue=true`、`sort=priority(缺省)/assignee/dueDate/status`、`order=asc/desc`（缺省取各字段默认方向：优先级降、其余升） |
 | POST/PATCH/DELETE | `/api/tasks[/:id]` | 任务 CRUD（`assigneeId:null` 即改回公共任务） |
 | GET | `/api/reports/completed` | 统计报告，参数：`from`、`to`、`groupBy=day/week/month/year`、同任务的作用域参数、`format=json(缺省)/csv` |
 

@@ -199,3 +199,69 @@ test('非法状态与优先级更新返回 400', async () => {
   assert.strictEqual((await agent.patch(`/api/tasks/${task.id}`).send({ status: 'archived' })).status, 400);
   assert.strictEqual((await agent.patch(`/api/tasks/${task.id}`).send({ priority: 9 })).status, 400);
 });
+
+// ---------- 排序 ----------
+
+test('缺省按优先级降序返回（高 → 低）', async () => {
+  const { app } = await setupApp();
+  const { agent } = await registerAgent(app, request, 'alice');
+
+  await agent.post('/api/tasks').send({ title: '低', priority: 1 });
+  await agent.post('/api/tasks').send({ title: '高', priority: 3 });
+  await agent.post('/api/tasks').send({ title: '中', priority: 2 });
+
+  const list = await agent.get('/api/tasks');
+  assert.strictEqual(list.status, 200);
+  assert.deepStrictEqual(list.body.tasks.map((t) => t.title), ['高', '中', '低']);
+});
+
+test('sort=priority&order=asc 返回升序', async () => {
+  const { app } = await setupApp();
+  const { agent } = await registerAgent(app, request, 'alice');
+
+  await agent.post('/api/tasks').send({ title: '低', priority: 1 });
+  await agent.post('/api/tasks').send({ title: '高', priority: 3 });
+
+  const list = await agent.get('/api/tasks?sort=priority&order=asc');
+  assert.deepStrictEqual(list.body.tasks.map((t) => t.title), ['低', '高']);
+});
+
+test('sort=dueDate 升序且无到期日排最后', async () => {
+  const { app } = await setupApp();
+  const { agent } = await registerAgent(app, request, 'alice');
+
+  const far = new Date();
+  far.setDate(far.getDate() + 10);
+  const near = new Date();
+  near.setDate(near.getDate() + 1);
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  await agent.post('/api/tasks').send({ title: '远', dueDate: fmt(far) });
+  await agent.post('/api/tasks').send({ title: '无日期' });
+  await agent.post('/api/tasks').send({ title: '近', dueDate: fmt(near) });
+
+  const list = await agent.get('/api/tasks?sort=dueDate');
+  assert.deepStrictEqual(list.body.tasks.map((t) => t.title), ['近', '远', '无日期']);
+});
+
+test('sort=status 按 等待 → 进行中 → 完成', async () => {
+  const { app } = await setupApp();
+  const { agent } = await registerAgent(app, request, 'alice');
+
+  const done = (await agent.post('/api/tasks').send({ title: '完成', status: 'done' })).body.task;
+  await agent.post('/api/tasks').send({ title: '等待' });
+  const doing = (await agent.post('/api/tasks').send({ title: '进行中' })).body.task;
+  await agent.patch(`/api/tasks/${doing.id}`).send({ status: 'doing' });
+
+  const list = await agent.get('/api/tasks?status=all&sort=status');
+  assert.deepStrictEqual(list.body.tasks.map((t) => t.title), ['等待', '进行中', '完成']);
+  void done;
+});
+
+test('非法排序字段或方向返回 400', async () => {
+  const { app } = await setupApp();
+  const { agent } = await registerAgent(app, request, 'alice');
+
+  assert.strictEqual((await agent.get('/api/tasks?sort=bogus')).status, 400);
+  assert.strictEqual((await agent.get('/api/tasks?sort=priority&order=sideways')).status, 400);
+});

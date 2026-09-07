@@ -14,6 +14,8 @@ window.FP = window.FP || {};
     memberIndex: {},
     scope: 'personal',
     status: 'open',
+    sort: 'priority',
+    order: 'desc',
     filters: { assignee: '', dueFrom: '', dueTo: '', overdue: false, priority: [] },
   };
 
@@ -36,7 +38,10 @@ window.FP = window.FP || {};
   }
 
   function restoreState() {
-    FP.state.filters = FP.filterView.readUrl();
+    const urlState = FP.filterView.readUrl();
+    FP.state.filters = urlState.filters;
+    FP.state.sort = urlState.sort;
+    FP.state.order = urlState.order;
 
     let scope = 'personal';
     try { scope = window.localStorage.getItem('fp.scope') || 'personal'; } catch (err) { /* 忽略 */ }
@@ -66,6 +71,7 @@ window.FP = window.FP || {};
     }
 
     FP.tasksView.renderScopeTabs();
+    FP.tasksView.renderSortTabs();
     FP.filterView.renderSummary();
     await FP.tasksView.refresh();
   }

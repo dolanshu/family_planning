@@ -14,6 +14,12 @@ window.FP = window.FP || {};
     { value: 3, label: '高' },
   ];
   const GROUP_TITLES = ['已逾期', '今天', '明天', '未来', '无日期'];
+  const SORT_FIELDS = [
+    { key: 'priority', label: '优先级', defaultOrder: 'desc' },
+    { key: 'assignee', label: '指派人', defaultOrder: 'asc' },
+    { key: 'dueDate', label: '到期日', defaultOrder: 'asc' },
+    { key: 'status', label: '状态', defaultOrder: 'asc' },
+  ];
 
   let firstLoad = true;
   let suppressClick = false;
@@ -82,17 +88,23 @@ window.FP = window.FP || {};
       return;
     }
 
-    const groups = [[], [], [], [], []];
-    tasks.forEach((task) => { groups[ui.dueGroup(task.dueDate)].push(task); });
+    // 仅按「到期日」排序时才显示日期分组标题；其余维度平铺展示
+    if (FP.state.sort === 'dueDate') {
+      const groups = [[], [], [], [], []];
+      tasks.forEach((task) => { groups[ui.dueGroup(task.dueDate)].push(task); });
 
-    let html = '';
-    groups.forEach((list, index) => {
-      if (list.length === 0) return;
-      html += `<div class="group-title">${GROUP_TITLES[index]}</div>`;
-      html += list.map(itemHTML).join('');
-    });
+      let html = '';
+      groups.forEach((list, index) => {
+        if (list.length === 0) return;
+        html += `<div class="group-title">${GROUP_TITLES[index]}</div>`;
+        html += list.map(itemHTML).join('');
+      });
 
-    box.innerHTML = html;
+      box.innerHTML = html;
+      return;
+    }
+
+    box.innerHTML = tasks.map(itemHTML).join('');
   }
 
   async function refresh() {
@@ -130,6 +142,11 @@ window.FP = window.FP || {};
   async function selectScope(key) {
     FP.state.scope = key;
     FP.state.filters.assignee = '';
+    // 个人作用域无法按指派人排序，回落为优先级
+    if (key === 'personal' && FP.state.sort === 'assignee') {
+      FP.state.sort = 'priority';
+      FP.state.order = 'desc';
+    }
     try { window.localStorage.setItem('fp.scope', key); } catch (err) { /* 忽略 */ }
 
     if (key !== 'personal') {
@@ -137,6 +154,7 @@ window.FP = window.FP || {};
     }
 
     renderScopeTabs();
+    renderSortTabs();
     FP.filterView.renderSummary();
     refresh();
   }
@@ -152,6 +170,49 @@ window.FP = window.FP || {};
         refresh();
       });
     });
+  }
+
+  // ---------- 排序 ----------
+
+  function renderSortTabs() {
+    const box = document.getElementById('sort-tabs');
+    if (!box) return;
+
+    const scope = FP.state.scope;
+    const html = SORT_FIELDS.map((field) => {
+      const disabled = field.key === 'assignee' && scope === 'personal';
+      const active = field.key === FP.state.sort;
+      const arrow = active ? (FP.state.order === 'asc' ? '↑' : '↓') : '';
+      return `
+        <button class="chip${active ? ' is-active' : ''}" type="button"
+                data-sort="${field.key}"${disabled ? ' disabled style="opacity:.45"' : ''}>
+          ${field.label}${arrow ? `<span class="sort-arrow">${arrow}</span>` : ''}
+        </button>
+      `;
+    }).join('');
+
+    box.innerHTML = '<span class="chips-label">排序</span>' + html;
+
+    box.querySelectorAll('[data-sort]').forEach((btn) => {
+      btn.addEventListener('click', () => selectSort(btn.dataset.sort));
+    });
+  }
+
+  function selectSort(key) {
+    const field = SORT_FIELDS.find((f) => f.key === key);
+    if (!field) return;
+    if (field.key === 'assignee' && FP.state.scope === 'personal') return;
+
+    if (FP.state.sort === key) {
+      FP.state.order = FP.state.order === 'asc' ? 'desc' : 'asc';
+    } else {
+      FP.state.sort = key;
+      FP.state.order = field.defaultOrder;
+    }
+
+    renderSortTabs();
+    FP.filterView.syncUrl();
+    refresh();
   }
 
   // ---------- 任务操作 ----------
@@ -506,6 +567,7 @@ window.FP = window.FP || {};
     refresh,
     render,
     renderScopeTabs,
+    renderSortTabs,
     wireStatusTabs,
     selectScope,
     openEditor,

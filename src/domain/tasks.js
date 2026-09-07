@@ -10,6 +10,10 @@ const STATUS_LIST = Object.values(STATUS);
 const PRIORITY = { NONE: 0, LOW: 1, MEDIUM: 2, HIGH: 3 };
 const PRIORITY_LIST = Object.values(PRIORITY);
 
+const SORT_FIELDS = ['priority', 'assignee', 'dueDate', 'status'];
+const DEFAULT_SORT_ORDER = { priority: 'desc', assignee: 'asc', dueDate: 'asc', status: 'asc' };
+const STATUS_RANK = { [STATUS.WAITING]: 0, [STATUS.DOING]: 1, [STATUS.DONE]: 2 };
+
 const TITLE_MAX = 200;
 const NOTES_MAX = 2000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -202,9 +206,101 @@ function deleteTask(state, user, taskId) {
 
 // ---------- 查询 ----------
 
+// ---------- 排序 ----------
+
+/** 解析并校验排序字段与方向；缺省字段 priority，方向取该字段的默认值。 */
+function normalizeSort(sort, order) {
+  const field = (sort === undefined || sort === null || sort === '') ? 'priority' : String(sort);
+  if (!SORT_FIELDS.includes(field)) throw badRequest('排序字段无效');
+
+  const dir = (order === undefined || order === null || order === '')
+    ? DEFAULT_SORT_ORDER[field]
+    : String(order);
+  if (dir !== 'asc' && dir !== 'desc') throw badRequest('排序方向无效');
+
+  return { sort: field, order: dir };
+}
+
+function usernameOf(state, userId) {
+  const user = state.users.find((u) => u.id === userId);
+  return user ? user.username : '';
+}
+
+/** 到期日比较：有日期的在前并按日期升序，无日期视为相等。 */
+function compareDueAsc(a, b) {
+  if (a.dueDate && b.dueDate) {
+    if (a.dueDate === b.dueDate) return 0;
+    return a.dueDate < b.dueDate ? -1 : 1;
+  }
+  if (a.dueDate && !b.dueDate) return -1;
+  if (!a.dueDate && b.dueDate) return 1;
+  return 0;
+}
+
+/** 兜底顺序：优先级降 → 到期日升（无日期最后）→ 创建时间升 → id 升。 */
+function compareFallback(a, b) {
+  if (a.priority !== b.priority) return b.priority - a.priority;
+  const due = compareDueAsc(a, b);
+  if (due !== 0) return due;
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+  if (a.id !== b.id) return a.id < b.id ? -1 : 1;
+  return 0;
+}
+
+function compareByPriority(order) {
+  return (a, b) => (order === 'asc' ? a.priority - b.priority : b.priority - a.priority);
+}
+
+function compareByDueDate(order) {
+  return (a, b) => {
+    // 无到期日始终排最后
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    if (a.dueDate === b.dueDate) return 0;
+    const asc = a.dueDate < b.dueDate ? -1 : 1;
+    return order === 'asc' ? asc : -asc;
+  };
+}
+
+function compareByAssignee(state, order) {
+  return (a, b) => {
+    const aid = effectiveAssigneeId(state, a);
+    const bid = effectiveAssigneeId(state, b);
+    // 公共任务（无指派）始终排最后
+    if (!aid && !bid) return 0;
+    if (!aid) return 1;
+    if (!bid) return -1;
+    const cmp = usernameOf(state, aid).localeCompare(usernameOf(state, bid), 'zh-Hans-CN');
+    return order === 'asc' ? cmp : -cmp;
+  };
+}
+
+function compareByStatus(order) {
+  return (a, b) => {
+    const ra = STATUS_RANK[a.status] === undefined ? 0 : STATUS_RANK[a.status];
+    const rb = STATUS_RANK[b.status] === undefined ? 0 : STATUS_RANK[b.status];
+    return order === 'asc' ? ra - rb : rb - ra;
+  };
+}
+
+/** 生成「主字段 + 固定兜底」的比较器。 */
+function buildComparator(state, sort, order) {
+  let primary;
+  if (sort === 'priority') primary = compareByPriority(order);
+  else if (sort === 'dueDate') primary = compareByDueDate(order);
+  else if (sort === 'assignee') primary = compareByAssignee(state, order);
+  else primary = compareByStatus(order);
+
+  return (a, b) => {
+    const result = primary(a, b);
+    return result !== 0 ? result : compareFallback(a, b);
+  };
+}
+
 /**
  * 列出用户可见且命中筛选条件的任务。
- * 跨维度为 AND，同一维度多值为 OR。
+ * 跨维度为 AND，同一维度多值为 OR；结果按 sort/order 排序。
  */
 function listTasks(state, user, filters = {}) {
   const {
@@ -217,6 +313,8 @@ function listTasks(state, user, filters = {}) {
     dueFrom,
     dueTo,
     overdue,
+    sort,
+    order,
   } = filters;
 
   const assigneeTokens = toTokenList(assignee);
@@ -263,21 +361,8 @@ function listTasks(state, user, filters = {}) {
     return true;
   });
 
-  return result.sort(compareTasks);
-}
-
-/** 有到期日的排前并按日期升序；同日按优先级降序；再按创建时间升序。 */
-function compareTasks(a, b) {
-  if (a.dueDate && b.dueDate) {
-    if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
-  } else if (a.dueDate && !b.dueDate) {
-    return -1;
-  } else if (!a.dueDate && b.dueDate) {
-    return 1;
-  }
-
-  if (a.priority !== b.priority) return b.priority - a.priority;
-  return a.createdAt < b.createdAt ? -1 : 1;
+  const { sort: sortField, order: sortOrder } = normalizeSort(sort, order);
+  return result.sort(buildComparator(state, sortField, sortOrder));
 }
 
 module.exports = {
@@ -289,11 +374,14 @@ module.exports = {
   canAccess,
   requireAccess,
   effectiveAssigneeId,
+  normalizeSort,
   todayStr,
   STATUS,
   STATUS_LIST,
   PRIORITY,
   PRIORITY_LIST,
+  SORT_FIELDS,
+  DEFAULT_SORT_ORDER,
   TITLE_MAX,
   NOTES_MAX,
 };

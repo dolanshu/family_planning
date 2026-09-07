@@ -41,11 +41,20 @@ testWithUser.describe('任务', () => {
     await expect(findTaskByTitle(page, '旧标题')).not.toBeVisible();
   });
 
-  testWithUser('TC-TASK-06 任务分组排序', async ({ page }) => {
+  testWithUser('TC-TASK-06 按到期日排序时显示日期分组', async ({ page }) => {
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     await createTask(page, { title: '明天任务', due: tomorrow });
     await createTask(page, { title: '今天任务', due: today });
+
+    // 默认（优先级降序）为平铺，无分组标题
+    await expect(page.locator('.group-title')).toHaveCount(0);
+
+    // 切到「到期日」排序后出现分组
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/tasks')),
+      page.click('#sort-tabs [data-sort="dueDate"]'),
+    ]);
 
     const groups = page.locator('.group-title');
     await expect(groups.first()).toContainText('今天');

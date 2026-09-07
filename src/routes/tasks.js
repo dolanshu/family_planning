@@ -22,6 +22,8 @@ function parseFilters(query = {}) {
     dueFrom: query.dueFrom,
     dueTo: query.dueTo,
     overdue: query.overdue,
+    sort: query.sort,
+    order: query.order,
   };
 }
 

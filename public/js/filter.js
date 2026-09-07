@@ -72,15 +72,28 @@ window.FP = window.FP || {};
 
   // ---------- URL 同步 ----------
 
+  const SORT_FIELDS = ['priority', 'assignee', 'dueDate', 'status'];
+  const DEFAULT_SORT_ORDER = { priority: 'desc', assignee: 'asc', dueDate: 'asc', status: 'asc' };
+
   function readUrl() {
     const params = new URLSearchParams(window.location.search);
     const priority = (params.get('priority') || '').split(',').filter(Boolean);
+
+    const sortRaw = params.get('sort') || 'priority';
+    const sort = SORT_FIELDS.includes(sortRaw) ? sortRaw : 'priority';
+    const orderRaw = params.get('order');
+    const order = (orderRaw === 'asc' || orderRaw === 'desc') ? orderRaw : DEFAULT_SORT_ORDER[sort];
+
     return {
-      assignee: params.get('assignee') || '',
-      dueFrom: params.get('dueFrom') || '',
-      dueTo: params.get('dueTo') || '',
-      overdue: params.get('overdue') === 'true',
-      priority,
+      filters: {
+        assignee: params.get('assignee') || '',
+        dueFrom: params.get('dueFrom') || '',
+        dueTo: params.get('dueTo') || '',
+        overdue: params.get('overdue') === 'true',
+        priority,
+      },
+      sort,
+      order,
     };
   }
 
@@ -92,6 +105,8 @@ window.FP = window.FP || {};
       dueTo: FP.state.filters.dueTo,
       overdue: FP.state.filters.overdue ? 'true' : '',
       priority: FP.state.filters.priority.join(','),
+      sort: FP.state.sort,
+      order: FP.state.order,
     };
     Object.keys(map).forEach((key) => {
       if (map[key]) params.set(key, map[key]);
@@ -329,6 +344,8 @@ window.FP = window.FP || {};
       dueTo: filters.dueTo,
       priority: filters.priority.join(','),
       overdue: filters.overdue ? 'true' : '',
+      sort: FP.state.sort,
+      order: FP.state.order,
     };
   }
 

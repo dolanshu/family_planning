@@ -201,6 +201,21 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .chips-scope { padding-top: 12px; }
 .chips-status { padding-top: 0; }
 .chips-active { padding-top: 0; flex-wrap: wrap; }
+.chips-sort { padding-top: 0; align-items: center; }
+
+.chips-label {
+  flex: 0 0 auto;
+  font-size: 12px; font-weight: 600;
+  color: var(--text-3);
+  padding-right: 2px;
+}
+
+.sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.85;
+}
 
 .chip {
   flex: 0 0 auto;
