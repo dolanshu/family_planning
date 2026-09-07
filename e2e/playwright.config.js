@@ -1,6 +1,7 @@
 'use strict';
 
 const { defineConfig, devices } = require('@playwright/test');
+const path = require('node:path');
 
 const baseURL = process.env.BASE_URL || 'http://localhost:3000';
 
@@ -10,7 +11,7 @@ module.exports = defineConfig({
   preserveOutput: 'never',
   reporter: [
     ['list'],
-    ['html', { outputFolder: './playwright-report', open: 'never' }],
+    ['html', { outputFolder: path.resolve(__dirname, 'playwright-report'), open: 'never' }],
   ],
   use: {
     baseURL,
