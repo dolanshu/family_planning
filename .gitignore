@@ -13,3 +13,4 @@ data/*.tmp
 # Playwright E2E 产物
 e2e/test-results/
 e2e/playwright-report/
+playwright-report/
