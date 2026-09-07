@@ -1,4 +1,13 @@
 # Caddy 反向代理：自动为 {$DOMAIN} 申请并续期 Let's Encrypt 证书
+#
+# 端口约定（当宿主机 443 被其它服务占用时使用）：
+#   - 80   ：保留给 Caddy，用于 HTTP-01 证书校验 + HTTP → HTTPS 跳转
+#   - 8070 ：HTTPS 实际监听端口（由下面的 https_port 指定）
+# 访问地址形如 https://todo.example.com:8070
+{
+	https_port 8070
+}
+
 {$DOMAIN} {
 	encode zstd gzip
 
@@ -7,7 +16,7 @@
 	}
 
 	header {
-		Strict-Transport-Security "max-age=31536000"
+		# 非标准端口下暂不启用 HSTS，避免浏览器把站点"钉死"在 8070
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
 	}

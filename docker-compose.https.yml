@@ -5,7 +5,9 @@
 #   export SESSION_SECRET=<一段随机字符串>
 #   docker compose -f docker-compose.yml -f docker-compose.https.yml --profile https up -d
 #
-# 注意：需要把域名 A 记录指向本机公网 IP，且 80/443 端口可访问。
+# 注意：需要把域名 A 记录指向本机 IP。本配置使用 8070 作为 HTTPS 端口（当 443 被占用时），
+#       80 端口用于证书校验（HTTP-01）与 HTTP→HTTPS 跳转，需保持可访问。
+#       访问地址形如 https://todo.example.com:8070
 services:
   app:
     environment:
@@ -14,6 +16,8 @@ services:
       NODE_ENV: production
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       DOMAIN: ${DOMAIN:?请设置 DOMAIN 环境变量}
+    # 生产环境不把 app 直接暴露到宿主机：仅由同网络内的 Caddy 反代（app:3000）
+    ports: !override []
 
   caddy:
     image: caddy:2-alpine
@@ -21,7 +25,7 @@ services:
     profiles: ["https"]
     ports:
       - "80:80"
-      - "443:443"
+      - "8070:8070"
     environment:
       DOMAIN: ${DOMAIN:?请设置 DOMAIN 环境变量}
     volumes:

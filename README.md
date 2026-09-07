@@ -49,6 +49,8 @@ docker compose up -d --build
 
 ### 生产（云服务器 + 域名，自动 HTTPS）
 
+> 若宿主机 **443 端口已被占用**（例如已有其它 Web 服务），可用任意空闲端口（如 `8070`）承载 HTTPS —— 只需改 `Caddyfile` 的全局 `https_port` 与 `docker-compose.https.yml` 里 Caddy 的端口映射，二者保持一致即可。下面以 `8070` 为例。
+
 ```bash
 export DOMAIN=todo.example.com          # 你的域名，A 记录指向服务器
 export SESSION_SECRET=$(openssl rand -hex 32)
@@ -57,7 +59,10 @@ export ALLOW_REGISTRATION=true          # 注册完成后建议改为 false
 docker compose -f docker-compose.yml -f docker-compose.https.yml --profile https up -d --build
 ```
 
-Caddy 会自动申请并续期 Let's Encrypt 证书，手机直接访问 `https://todo.example.com` 无告警。
+- Caddy 会占用宿主机 **80 端口**用于证书校验（HTTP-01）与 HTTP→HTTPS 跳转，**该端口需保持可访问**；443 不需要。
+- Caddy 自动申请并续期 Let's Encrypt 证书，访问地址为 `https://todo.example.com:8070`（带端口、无告警）。
+- 生产模式下 app 不直接暴露宿主机端口，仅由同网络内的 Caddy 反代（`app:3000`）。
+- 若想去掉地址里的端口号（即 `https://todo.example.com`），则必须让出 443 —— 通常做法是改用你现有的 80/443 反向代理（nginx/Caddy）反代到本服务，详见 `docker-compose.https.yml` 顶部注释。
 
 ## 环境变量
 
