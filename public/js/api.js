@@ -23,15 +23,18 @@ window.FP = window.FP || {};
       throw new Error('网络异常，请检查连接');
     }
 
-    if (res.status === 401) {
-      unauthorizedHandlers.forEach((fn) => fn());
-      throw new Error('登录已过期，请重新登录');
-    }
-
     const text = await res.text();
     let data = null;
     if (text) {
       try { data = JSON.parse(text); } catch (err) { data = null; }
+    }
+
+    if (res.status === 401) {
+      unauthorizedHandlers.forEach((fn) => fn());
+      const message = (data && data.error && data.error.message) || '登录已过期，请重新登录';
+      const error = new Error(message);
+      error.status = 401;
+      throw error;
     }
 
     if (!res.ok) {

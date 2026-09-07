@@ -316,7 +316,7 @@ window.FP = window.FP || {};
         const familyField = sheet.querySelector('#task-family-field');
         const dueInput = sheet.querySelector('#task-due');
 
-        sheet.querySelectorAll('[data-seg]').forEach((group) => {
+        function handleSegClick(group) {
           group.addEventListener('click', async (event) => {
             const btn = event.target.closest('.chip');
             if (!btn || btn.disabled) return;
@@ -346,9 +346,13 @@ window.FP = window.FP || {};
                 assigneeId = null;
               }
               slot.innerHTML = assigneeHTML();
+              const newAssignee = slot.querySelector('[data-seg="assignee"]');
+              if (newAssignee) handleSegClick(newAssignee);
             }
           });
-        });
+        }
+
+        sheet.querySelectorAll('[data-seg]').forEach((group) => handleSegClick(group));
 
         const familySelect = sheet.querySelector('#task-family');
         if (familySelect) {
