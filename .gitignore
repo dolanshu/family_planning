@@ -10,6 +10,9 @@ data/*.tmp
 .DS_Store
 .env
 
+# 本地需求文档（不入库）
+requirement.md
+
 # Playwright E2E 产物
 e2e/test-results/
 e2e/playwright-report/
