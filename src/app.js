@@ -11,7 +11,7 @@ const reportRoutes = require('./routes/reports');
 const { apiNotFound, errorHandler } = require('./middleware/error');
 
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
-const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 天
+const SESSION_MAX_AGE = 29 * 24 * 60 * 60 * 1000; // 29 天
 
 function createApp({ store, config }) {
   const app = express();
