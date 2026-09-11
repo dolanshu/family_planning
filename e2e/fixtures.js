@@ -26,7 +26,9 @@ const testWithFamily = base.extend({
     const page = await context.newPage();
     const username = randomName('alice');
     const user = await register(page, username);
-    const { familyId, inviteCode } = await createFamily(page, 'E2E家庭');
+    // 家庭名加唯一后缀：多个 testWithFamily 用例并发/乱序跑时若都用写死的
+    // 'E2E家庭' 会撞名导致创建失败、下游断言偶发失败。前缀保留以便 toContainText 断言通过。
+    const { familyId, inviteCode } = await createFamily(page, `E2E家庭-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
     await use({ page, username, userId: user.id, familyId, inviteCode });
     await context.close();
   },

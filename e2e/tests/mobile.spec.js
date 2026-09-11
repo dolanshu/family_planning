@@ -13,8 +13,9 @@ testWithUser.describe('移动端 UI', () => {
     await page.click('#btn-add');
     await expect(page.locator('.sheet')).toBeVisible();
 
-    // 点击遮罩关闭
-    await page.locator('.sheet-mask').click();
+    // 底部弹层锚定在视口底部（max-height:88vh），遮罩顶部约 12vh 是未被面板覆盖的可点区域；
+    // 直接点遮罩中心会被面板（z-index 更高）拦截，故点击遮罩左上角以命中真正的遮罩。
+    await page.locator('.sheet-mask').click({ position: { x: 10, y: 10 } });
     await expect(page.locator('.sheet')).toHaveCount(0, { timeout: 3000 });
   });
 

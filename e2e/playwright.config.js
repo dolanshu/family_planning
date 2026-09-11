@@ -31,5 +31,5 @@ module.exports = defineConfig({
   expect: {
     timeout: 5000,
   },
-  workers: process.env.CI ? 2 : undefined,
+  workers: 1,
 });
