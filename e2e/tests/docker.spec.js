@@ -17,7 +17,7 @@ async function waitForServer(url, timeoutMs = 30000) {
   throw new Error('服务未在超时内就绪');
 }
 
-test.describe('Docker 部署回归', () => {
+test.describe('Docker 部署回归', { tag: ['@docker'] }, () => {
   test('TC-DOCKER-01 容器启动后可访问', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#auth-form')).toBeVisible();

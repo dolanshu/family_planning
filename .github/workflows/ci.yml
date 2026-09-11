@@ -121,7 +121,9 @@ jobs:
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           # global-setup 会轮询 BASE_URL 直到就绪（最多 30s）
-          npm run test:e2e
+          # 排除 @docker 部署回归用例：它要求环境里有正在运行的容器，
+          # 预合并 CI 只是 npm start 起普通服务，应由真实部署后单独跑。
+          npm run test:e2e -- --grep-invert '@docker'
 
       - name: 上传 Playwright 报告
         if: always()
