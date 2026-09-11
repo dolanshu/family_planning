@@ -1,0 +1,217 @@
+name: Release
+
+# 发布流程：构建并推送镜像到 GHCR → SSH 到自有服务器用 docker compose 更新。
+#
+# 触发方式：
+#   1) 推送 tag（推荐）：git tag v1.0.0 && git push origin v1.0.0
+#   2) 手动触发（Actions → Release → Run workflow），可指定任意 ref 重新部署 / 回滚
+#
+# 需要在仓库 Settings → Secrets and variables → Actions 配置：
+#   secrets.DEPLOY_HOST      服务器 IP 或域名
+#   secrets.DEPLOY_USER      SSH 用户名（需有 docker 权限，建议加入 docker 组）
+#   secrets.DEPLOY_SSH_KEY   SSH 私钥全文（含 -----BEGIN ... END ...----- 行）
+#   secrets.REGISTRY_TOKEN   可选，服务器拉私库镜像用的 PAT（read:packages），缺省用 GITHUB_TOKEN
+#   vars.DEPLOY_DIR          可选，服务器上的项目目录，默认 /root/project/family_planning
+#   vars.DEPLOY_PORT         可选，SSH 端口，默认 22
+#   vars.DEPLOY_COMPOSE_FILES 可选，compose 文件组合，默认见下
+#   vars.DEPLOY_HEALTH_URL   可选，健康检查地址，默认本机 3000 端口
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 要构建的 git 引用（tag / 分支 / commit），留空则用当前 ref
+        required: false
+        default: ''
+      platform:
+        description: 构建平台，多平台用英文逗号分隔
+        required: false
+        default: linux/amd64
+      deploy:
+        description: 构建后是否 SSH 部署到服务器
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: 构建并推送镜像
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+      digest: ${{ steps.build.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+    env:
+      REGISTRY: ghcr.io
+      PLATFORMS: ${{ inputs.platform || 'linux/amd64' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: 解析镜像坐标
+        id: image
+        run: echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: 准备 QEMU（仅非 amd64 平台需要）
+        if: ${{ env.PLATFORMS != 'linux/amd64' }}
+        uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录 GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 生成标签与注解
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}},enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=sha,format=short,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: 构建并推送
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 输出摘要
+        run: |
+          {
+            echo "### 镜像已推送"
+            echo ""
+            echo '```'
+            echo '${{ steps.meta.outputs.tags }}'
+            echo '```'
+            echo ""
+            echo "digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: SSH 部署到服务器
+    needs: image
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy }}
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: ${{ needs.image.outputs.image }}@${{ needs.image.outputs.digest }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/root/project/family_planning' }}
+      COMPOSE_FILES: ${{ vars.DEPLOY_COMPOSE_FILES || '-f docker-compose.yml -f docker-compose.deploy.yml' }}
+      HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL || 'http://127.0.0.1:3000/api/auth/me' }}
+    steps:
+      - name: 准备 SSH 私钥
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: 同步 compose 文件（服务端改过这些文件的可关闭，见文档）
+        if: ${{ vars.DEPLOY_SYNC_COMPOSE != 'false' }}
+        run: |
+          scp -i "$HOME/.ssh/deploy_key" \
+              -P "$DEPLOY_PORT" \
+              -o StrictHostKeyChecking=accept-new \
+              docker-compose.yml docker-compose.deploy.yml docker-compose.https.yml Caddyfile \
+              "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
+
+      - name: 生成并执行远程部署脚本
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          # 本地拼装：前几行用 printf %q 安全注入变量，其余为字面量脚本
+          {
+            printf 'set -euo pipefail\n'
+            printf 'export IMAGE=%q\n' "$IMAGE_REF"
+            printf 'export COMPOSE_FILES=%q\n' "$COMPOSE_FILES"
+            printf 'export HEALTH_URL=%q\n' "$HEALTH_URL"
+            printf 'export GHCR_USER=%q\n' "$REGISTRY_USER"
+            printf 'export GHCR_TOKEN=%q\n' "$REGISTRY_TOKEN"
+            cat <<'REMOTE'
+          echo "==> 工作目录：$(pwd)"
+          printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          # 数据目录在宿主机，更新前先留一份快照，便于出问题回退
+          if [ -f data/todo.json ]; then
+            cp -a "data/todo.json" "data/todo.json.bak-$(date +%Y%m%d-%H%M%S)"
+          fi
+
+          echo "==> 拉取镜像 $IMAGE"
+          docker compose $COMPOSE_FILES pull
+
+          echo "==> 重建服务"
+          docker compose $COMPOSE_FILES up -d --remove-orphans
+          docker image prune -f
+
+          echo "==> 健康检查 $HEALTH_URL"
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" || true)
+            if [ "$code" = "401" ] || [ "$code" = "200" ]; then
+              echo "健康检查通过（HTTP $code）"
+              docker compose $COMPOSE_FILES ps
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "健康检查失败，最近 200 行日志："
+          docker compose $COMPOSE_FILES logs --tail=200
+          exit 1
+          REMOTE
+          } > "$RUNNER_TEMP/remote-deploy.sh"
+
+          ssh -i "$HOME/.ssh/deploy_key" \
+              -p "$DEPLOY_PORT" \
+              -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=10 \
+              "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' < "$RUNNER_TEMP/remote-deploy.sh"
+
+      - name: 清理私钥
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key"
+
+      - name: 输出部署摘要
+        if: success()
+        run: |
+          {
+            echo "### 部署完成"
+            echo ""
+            echo "- 镜像：\`$IMAGE_REF\`"
+            echo "- 目标：\`$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR\`"
+            echo "- 健康检查：\`$HEALTH_URL\`"
+          } >> "$GITHUB_STEP_SUMMARY"

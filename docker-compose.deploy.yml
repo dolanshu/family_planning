@@ -1,0 +1,23 @@
+# CI/CD 部署叠加层 —— 由 Release 工作流在服务器上使用
+#
+# 与仓库根目录的 docker-compose.yml 组合，把「本地构建」替换为「拉取 GHCR 已构建镜像」：
+#
+#   export IMAGE=ghcr.io/<owner>/<repo>@sha256:<digest>
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d
+#
+# 需要 HTTPS 时再叠加一层（同时启用 https profile）：
+#
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml \
+#                  -f docker-compose.https.yml --profile https up -d
+#
+# 前置要求：
+#   - Docker Compose v2.24+（用到 `!reset` 语法移除基础文件中的 build 段）
+#   - 生产环境请通过服务器上的 .env 覆盖 SESSION_SECRET（基础文件的默认值仅用于内网）
+services:
+  app:
+    # 使用 CI 构建推送好的镜像，取代本地 build
+    image: ${IMAGE:?请设置 IMAGE 环境变量（形如 ghcr.io/owner/repo:v1.0.0 或 @sha256:...）}
+    build: !reset null
+    # 每次部署都校验远端镜像，保证 digest 永远对应本次构建
+    pull_policy: always
+    restart: unless-stopped

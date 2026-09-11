@@ -16,3 +16,6 @@ requirement.md
 # Playwright E2E 产物
 e2e/test-results/
 e2e/playwright-report/
+
+# 本地 WorkBuddy 记忆目录（机器相关，不入库）
+.workbuddy/
